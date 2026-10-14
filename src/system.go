@@ -523,7 +523,7 @@ func (s *System) init(w, h int32) *lua.LState {
 	systemScriptInit(l)
 	s.shortcutScripts = make(map[ShortcutKey]*ShortcutScript)
 	s.loadedCustomShaders = make(map[string]bool)
-	if runtime.GOOS != "android" {
+	if runtime.GOOS != "android" && runtime.GOOS != "js" {
 		// So now that we have a window we add an icon.
 		if len(s.cfg.Config.WindowIcon) > 0 {
 			// First we initialize arrays.
