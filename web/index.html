@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ikemen GO (browser)</title>
+<style>
+html,body{margin:0;height:100%;background:#111;color:#ddd;font:15px/1.5 system-ui,sans-serif}
+#menu{max-width:560px;margin:8vh auto;padding:0 16px}
+button{font:inherit;padding:.5em 1.2em;cursor:pointer}
+#stage{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center}
+#ikemen-canvas{max-width:100%;max-height:100%;outline:none}
+#overlay{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:5}
+#overlay>div{background:#222;padding:16px;max-width:80%;white-space:pre-wrap}
+#fs{position:fixed;right:8px;top:8px;z-index:4;opacity:.4}
+small{color:#999}
+</style></head><body>
+<div id="menu">
+<h1>Ikemen GO</h1>
+<p>Unofficial WebAssembly / WebGL2 port. Content is loaded from <code>engine.zip</code> and <code>content.zip</code>.</p>
+<p><label>Extra characters/stages (zip, optional):<br><input id="extra" type="file" accept=".zip" multiple></label><br>
+<small>Zips should contain <code>chars/</code> and/or <code>stages/</code> folders. Remember to list them in <code>data/select.def</code>.</small></p>
+<p><button id="start">Start</button></p>
+<p id="status"></p>
+</div>
+<div id="stage" hidden><canvas id="ikemen-canvas" width="1280" height="720" tabindex="0"></canvas><button id="fs">Fullscreen</button></div>
+<div id="overlay" hidden><div><div id="errtext"></div><p><button id="errclose">Close</button></p></div></div>
+<script src="fs.js"></script>
+<script src="wasm_exec.js"></script>
+<script src="zip.js"></script>
+<script src="main.js"></script>
+</body></html>
