@@ -1,6 +1,25 @@
 (function () {
 	const $ = id => document.getElementById(id);
 	const status = t => { $("status").textContent = t; };
+	// Mirror console output and errors into an on-page log so problems can be screenshotted
+	const logEl = $("log"), lines = [];
+	const addLog = (k, a) => {
+		lines.push((k === "log" ? "" : k.toUpperCase() + ": ") + a.map(x => x instanceof Error ? x.stack || x.message : String(x)).join(" "));
+		if (lines.length > 80) lines.shift();
+		logEl.textContent = lines.join("\n");
+		logEl.parentNode.scrollTop = 1e9;
+	};
+	for (const k of ["log", "info", "warn", "error"]) {
+		const o = console[k].bind(console);
+		console[k] = (...a) => { o(...a); addLog(k, a); };
+	}
+	window.addEventListener("error", e => addLog("error", [e.message + " @" + e.filename + ":" + e.lineno]));
+	window.addEventListener("unhandledrejection", e => addLog("error", ["Unhandled: " + (e.reason && (e.reason.stack || e.reason))]));
+	$("logtoggle").addEventListener("click", () => {
+		const hide = logEl.style.display !== "none";
+		logEl.style.display = hide ? "none" : "";
+		$("logtoggle").textContent = hide ? "Show log" : "Hide log";
+	});
 	const DB = "ikemen-save", STORE = "files";
 
 	function idb() {

@@ -12,6 +12,9 @@ button{font:inherit;padding:.5em 1.2em;cursor:pointer}
 #overlay>div{background:#222;padding:16px;max-width:80%;white-space:pre-wrap}
 #fs{position:fixed;right:8px;top:8px;z-index:4;opacity:.4}
 small{color:#999}
+#logbox{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#000c;color:#9f9;font:11px/1.3 monospace;max-height:35vh;overflow:auto}
+#logbox pre{margin:0;padding:4px 8px;white-space:pre-wrap}#logtoggle{float:right;font-size:11px;padding:2px 8px}
+[hidden]{display:none!important}
 </style></head><body>
 <div id="menu">
 <h1>Ikemen GO</h1>
@@ -23,6 +26,7 @@ small{color:#999}
 </div>
 <div id="stage" hidden><canvas id="ikemen-canvas" width="1280" height="720" tabindex="0"></canvas><button id="fs">Fullscreen</button></div>
 <div id="overlay" hidden><div><div id="errtext"></div><p><button id="errclose">Close</button></p></div></div>
+<div id="logbox"><button id="logtoggle">Hide log</button><pre id="log"></pre></div>
 <script src="fs.js"></script>
 <script src="wasm_exec.js"></script>
 <script src="zip.js"></script>
