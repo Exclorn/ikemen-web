@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: bash web/build.sh "$RUNNER_TEMP/screenpack"
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
