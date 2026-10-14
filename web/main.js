@@ -59,7 +59,7 @@
 
 	async function fetchZip(url, label, strip) {
 		status("Downloading " + label + "...");
-		const r = await fetch(url);
+		const r = await fetch(url + "?v=" + Math.floor(Date.now() / 60000));
 		if (!r.ok) throw new Error(url + ": HTTP " + r.status);
 		const buf = await r.arrayBuffer();
 		status("Unpacking " + label + "...");
@@ -102,7 +102,7 @@
 			ikemenFS.setChangeListener(p => { if (p.startsWith("/save")) scheduleSave(); });
 			status("Starting...");
 			const go = new Go();
-			const wasm = await WebAssembly.instantiateStreaming(fetch("ikemen.wasm"), go.importObject);
+			const wasm = await WebAssembly.instantiateStreaming(fetch("ikemen.wasm?v=" + Date.now(), { cache: "no-store" }), go.importObject);
 			$("menu").hidden = true;
 			$("stage").hidden = false;
 			$("ikemen-canvas").focus();
