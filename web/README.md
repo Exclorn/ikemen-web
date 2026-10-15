@@ -10,5 +10,5 @@ Chromium with the engine's sprite shaders), fs.js (tested against Go's os packag
 Expect compile errors on the first real build.
 
 Limitations: no 3D models/shadows, no video, no tracker music (xm/mod), no netplay, no system font search.
-Added characters/stages must be listed in data/select.def. Keyboard bindings use physical key positions.
+Characters and stages in uploaded zips are added to data/select.def automatically. Keyboard bindings use physical key positions.
 Saves (save/) persist in IndexedDB.

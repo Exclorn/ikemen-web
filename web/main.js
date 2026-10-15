@@ -63,19 +63,34 @@
 		if (!r.ok) throw new Error(url + ": HTTP " + r.status);
 		const buf = await r.arrayBuffer();
 		status("Unpacking " + label + "...");
-		await load(buf, strip);
+		await load(buf, strip, label);
 	}
-	async function load(buf, strip) {
+	// Unpacks a zip into the virtual filesystem and returns the list of [path, bytes] it wrote.
+	// For user zips (strip = true) a single wrapper folder is removed, and a zip that has no chars/ or
+	// stages/ folder at all is treated as one character folder and placed under chars/.
+	async function load(buf, strip, zipName) {
 		const names = [];
 		await ikemenUnzip(buf, (n, d) => names.push([n, d]));
 		let prefix = "";
+		const known = ["data", "chars", "stages", "font", "sound"];
+		const topOf = n => n.split("/")[0].toLowerCase();
 		if (strip) {
-			// Remove one shared top-level folder, e.g. "MyPack/data/..."
+			// Remove one shared top-level folder, e.g. "MyPack/chars/..."
 			const first = names.length ? names[0][0].split("/")[0] : "";
-			if (first && names.every(([n]) => n.startsWith(first + "/")) && !["data", "chars", "stages", "font", "sound"].includes(first.toLowerCase()))
+			if (first && names.every(([n]) => n.startsWith(first + "/")) && !known.includes(first.toLowerCase()))
 				prefix = first + "/";
 		}
-		for (const [n, d] of names) ikemenFS.writeFile("/" + n.slice(prefix.length), d);
+		let out = names.map(([n, d]) => [n.slice(prefix.length), d]);
+		if (strip && !out.some(([n]) => known.includes(topOf(n)))) {
+			// A plain character zip: use the wrapper folder name (or the zip name) as the folder
+			const folder = prefix ? prefix.slice(0, -1) : (zipName || "char").replace(/\.zip$/i, "");
+			out = out.map(([n, d]) => ["chars/" + (prefix ? folder + "/" : folder + "/") + n, d]);
+		}
+		for (const [n, d] of out) {
+			if (strip && n.toLowerCase() === "data/select.def") continue; // never replace the game's own list
+			ikemenFS.writeFile("/" + n, d);
+		}
+		return out;
 	}
 
 	window.ikemenShowMessage = (level, title, msg) => {
@@ -94,9 +109,22 @@
 			ikemenAudioCtx.resume();
 			await fetchZip("engine.zip", "engine", false);
 			await fetchZip("content.zip", "content", false);
+			const added = [];
 			for (const f of $("extra").files) {
 				status("Unpacking " + f.name + "...");
-				await load(await f.arrayBuffer(), true);
+				added.push(...await load(await f.arrayBuffer(), true, f.name));
+			}
+			if (added.length) {
+				const found = ikemenSelectDef.scan(added);
+				const path = "/data/select.def";
+				const cur = ikemenFS.readFile(path);
+				if (cur) {
+					const text = ikemenSelectDef.apply(new TextDecoder().decode(cur), found.chars, found.stages);
+					ikemenFS.writeFile(path, new TextEncoder().encode(text));
+				}
+				console.log("Added " + found.chars.length + " character(s) and " + found.stages.length + " stage(s) to select.def");
+				found.chars.forEach(c => console.log("  character: " + c));
+				found.stages.forEach(s => console.log("  stage: " + s));
 			}
 			await restoreSave();
 			ikemenFS.setChangeListener(p => { if (p.startsWith("/save")) scheduleSave(); });

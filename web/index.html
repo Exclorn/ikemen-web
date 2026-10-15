@@ -20,7 +20,7 @@ small{color:#999}
 <h1>Ikemen GO</h1>
 <p>Unofficial WebAssembly / WebGL2 port. Content is loaded from <code>engine.zip</code> and <code>content.zip</code>.</p>
 <p><label>Extra characters/stages (zip, optional):<br><input id="extra" type="file" accept=".zip" multiple></label><br>
-<small>Zips should contain <code>chars/</code> and/or <code>stages/</code> folders. Remember to list them in <code>data/select.def</code>.</small></p>
+<small>Zips with <code>chars/</code> and/or <code>stages/</code> folders are added to the select screen automatically. A zip holding just one character folder also works.</small></p>
 <p><button id="start">Start</button></p>
 <p id="status"></p>
 </div>
@@ -30,5 +30,6 @@ small{color:#999}
 <script src="fs.js"></script>
 <script src="wasm_exec.js"></script>
 <script src="zip.js"></script>
+<script src="selectdef.js"></script>
 <script src="main.js"></script>
 </body></html>
