@@ -130,17 +130,29 @@
 					console.error("Could not read " + rec.name + ": " + e.message);
 				}
 			}
-			if (added.length) {
-				const found = ikemenSelectDef.scan(added);
-				const path = "/data/select.def";
-				const cur = ikemenFS.readFile(path);
-				if (cur) {
-					const text = ikemenSelectDef.apply(new TextDecoder().decode(cur), found.chars, found.stages);
-					ikemenFS.writeFile(path, new TextEncoder().encode(text));
+			const selPath = "/data/select.def";
+			let sel = ikemenFS.readFile(selPath);
+			if (sel) {
+				let text = new TextDecoder().decode(sel);
+				if (added.length) {
+					const found = ikemenSelectDef.scan(added);
+					text = ikemenSelectDef.apply(text, found.chars, found.stages);
+					console.log("Added " + found.chars.length + " character(s) and " + found.stages.length + " stage(s) to select.def");
+					found.chars.forEach(c => console.log("  character: " + c));
+					found.stages.forEach(s => console.log("  stage: " + s));
 				}
-				console.log("Added " + found.chars.length + " character(s) and " + found.stages.length + " stage(s) to select.def");
-				found.chars.forEach(c => console.log("  character: " + c));
-				found.stages.forEach(s => console.log("  stage: " + s));
+				// Stages that use 3D models cannot be drawn in the browser (they would be a black screen)
+				const model = [];
+				for (const [p, d] of ikemenFS.listFiles("/stages")) {
+					if (!/\.def$/i.test(p) || d.length > 1 << 20) continue;
+					const t = new TextDecoder().decode(d);
+					if (/^\s*\[model\]/im.test(t) || /\.glb\b/i.test(t)) model.push(p.slice(1));
+				}
+				if (model.length) {
+					text = ikemenSelectDef.dropStages(text, model);
+					console.log("Hidden 3D stages (not supported in the browser): " + model.join(", "));
+				}
+				ikemenFS.writeFile(selPath, new TextEncoder().encode(text));
 			}
 			await restoreSave();
 			ikemenFS.setChangeListener(p => { if (p.startsWith("/save")) scheduleSave(); });

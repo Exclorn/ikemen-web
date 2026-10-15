@@ -55,5 +55,24 @@
 		return lines.join(nl);
 	}
 
-	globalThis.ikemenSelectDef = { scan, apply };
+	// Removes the given stage paths (e.g. "stages/foo.def") from select.def: whole lines in the stage list,
+	// and ", stages/foo.def" assignments on character lines.
+	function dropStages(src, paths) {
+		if (!paths.length) return src;
+		const nl = src.includes("\r\n") ? "\r\n" : "\n";
+		const drop = new Set(paths.map(p => p.toLowerCase()));
+		const out = [];
+		for (const line of src.split(/\r?\n/)) {
+			const t = line.trim();
+			if (t.startsWith(";")) { out.push(line); continue; }
+			if (drop.has(t.toLowerCase())) continue;
+			if (t.includes(",")) {
+				const parts = line.split(",");
+				out.push([parts[0], ...parts.slice(1).filter(x => !drop.has(x.trim().toLowerCase()))].join(","));
+			} else out.push(line);
+		}
+		return out.join(nl);
+	}
+
+	globalThis.ikemenSelectDef = { scan, apply, dropStages };
 })();
