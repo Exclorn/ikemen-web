@@ -38,5 +38,7 @@ cp "$root/src/resources/defaultMotif.ini" "$stage/e/data/system.base.def"
 # Content (screenpack): everything except work files and video
 mkdir -p "$stage/c"
 for d in chars data font sound stages; do [ -d "$pack/$d" ] && cp -r "$pack/$d" "$stage/c/$d"; done
+# The screenpack lists three Kung Fu Man variants; keep only kfm_zss on the select screen
+sed -i -E '/^(kfm720|kfm_zaxis)[[:space:]]*,/d' "$stage/c/data/select.def"
 ( cd "$stage/c" && zip -qr "$out/content.zip" . )
 ls -la "$out"
