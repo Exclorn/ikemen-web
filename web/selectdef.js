@@ -9,14 +9,14 @@
 		const chars = [], stages = [];
 		for (const [p, d] of files) {
 			const parts = p.split("/");
-			if (!/\.def$/i.test(p)) continue;
+			if (!/\.def$/i.test(p) || d.length > 1 << 20) continue;
 			const top = parts[0].toLowerCase();
 			if (top === "chars" && parts.length >= 3) {
 				// A character file has a [Files] section with a sprite entry. Skips storyboards, etc.
 				const t = text(d);
 				if (/^\s*\[files\]/im.test(t) && /^\s*sprite\s*=/im.test(t)) chars.push(parts.slice(1).join("/"));
 			} else if (top === "stages" && parts.length >= 2) {
-				if (/^\s*\[stageinfo\]/im.test(text(d))) stages.push(p);
+				{ const t = text(d); if (/^\s*\[stageinfo\]/im.test(t) || /^\s*\[bgdef\]/im.test(t)) stages.push(p); }
 			}
 		}
 		return { chars, stages };

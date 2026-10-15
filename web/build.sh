@@ -26,7 +26,7 @@ GO
 fi
 ( cd "$root" && GOOS=js GOARCH=wasm go build -mod=vendor -ldflags "-s -w" -o "$out/ikemen.wasm" ./src )
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$out/" 2>/dev/null || cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "$out/"
-cp "$here"/{index.html,main.js,zip.js,fs.js,selectdef.js} "$out/"
+cp "$here"/{index.html,main.js,zip.js,fs.js,selectdef.js,lib.js} "$out/"
 # Engine files
 stage="$(mktemp -d)"; trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/e/external" "$stage/e/data"

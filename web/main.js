@@ -70,7 +70,15 @@
 	// stages/ folder at all is treated as one character folder and placed under chars/.
 	async function load(buf, strip, zipName) {
 		const names = [];
-		await ikemenUnzip(buf, (n, d) => names.push([n, d]));
+		await ikemenUnzip(buf, (n, d) => {
+			n = n.replace(/\\/g, "/").replace(/^\/+/, "");
+			if (strip) {
+				const base = n.split("/").pop();
+				// Skip macOS leftovers, hidden files and path tricks
+				if (/^__MACOSX\//i.test(n) || base.startsWith("._") || base === ".DS_Store" || base === "Thumbs.db" || n.split("/").includes("..")) return;
+			}
+			names.push([n, d]);
+		});
 		let prefix = "";
 		const known = ["data", "chars", "stages", "font", "sound"];
 		const topOf = n => n.split("/")[0].toLowerCase();
@@ -80,6 +88,7 @@
 			if (first && names.every(([n]) => n.startsWith(first + "/")) && !known.includes(first.toLowerCase()))
 				prefix = first + "/";
 		}
+		const overwritten = [];
 		let out = names.map(([n, d]) => [n.slice(prefix.length), d]);
 		if (strip && !out.some(([n]) => known.includes(topOf(n)))) {
 			// A plain character zip: use the wrapper folder name (or the zip name) as the folder
@@ -88,8 +97,10 @@
 		}
 		for (const [n, d] of out) {
 			if (strip && n.toLowerCase() === "data/select.def") continue; // never replace the game's own list
+			if (strip && ikemenFS.exists("/" + n) && /\.(def|sff|air|cmd|cns)$/i.test(n)) overwritten.push(n);
 			ikemenFS.writeFile("/" + n, d);
 		}
+		if (strip && overwritten.length) console.warn((zipName || "zip") + " replaced " + overwritten.length + " existing file(s), e.g. " + overwritten[0]);
 		return out;
 	}
 
@@ -110,9 +121,14 @@
 			await fetchZip("engine.zip", "engine", false);
 			await fetchZip("content.zip", "content", false);
 			const added = [];
-			for (const f of $("extra").files) {
-				status("Unpacking " + f.name + "...");
-				added.push(...await load(await f.arrayBuffer(), true, f.name));
+			for (const rec of await ikemenLib.list()) {
+				if (!rec.enabled) continue;
+				status("Unpacking " + rec.name + "...");
+				try {
+					added.push(...await load(await (await ikemenLib.blob(rec.name)).arrayBuffer(), true, rec.name));
+				} catch (e) {
+					console.error("Could not read " + rec.name + ": " + e.message);
+				}
 			}
 			if (added.length) {
 				const found = ikemenSelectDef.scan(added);
@@ -143,6 +159,47 @@
 			$("start").disabled = false; started = false;
 		}
 	}
+
+	// ---- Library UI ----
+	const fmt = n => n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+	async function renderLib() {
+		const box = $("libList");
+		box.textContent = "";
+		let recs = [];
+		try { recs = await ikemenLib.list(); } catch (e) { box.textContent = "Browser storage is not available: " + e.message; return; }
+		if (!recs.length) box.textContent = "Nothing added yet.";
+		for (const r of recs) {
+			const row = document.createElement("div");
+			row.className = "libRow";
+			const cb = document.createElement("input");
+			cb.type = "checkbox"; cb.checked = r.enabled;
+			cb.addEventListener("change", () => ikemenLib.setEnabled(r.name, cb.checked));
+			const label = document.createElement("span");
+			label.textContent = r.name + " (" + fmt(r.size) + ")";
+			const del = document.createElement("button");
+			del.textContent = "Remove";
+			del.addEventListener("click", async () => { await ikemenLib.remove(r.name); renderLib(); });
+			row.append(cb, label, del);
+			box.append(row);
+		}
+		const u = await ikemenLib.usage();
+		$("libUsage").textContent = u ? "Browser storage used: " + fmt(u.used) + " of " + fmt(u.quota) : "";
+	}
+	async function addFiles(files) {
+		const zips = [...files].filter(f => /\.zip$/i.test(f.name));
+		if (zips.length < files.length) status("Only .zip files can be added.");
+		try {
+			ikemenLib.persist();
+			for (const f of zips) await ikemenLib.add(f);
+		} catch (e) { status("Could not store the file: " + e.message); }
+		renderLib();
+	}
+	$("extra").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+	const drop = $("menu");
+	drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("drag"); });
+	drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+	drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("drag"); addFiles(e.dataTransfer.files); });
+	renderLib();
 	$("start").addEventListener("click", start);
 	$("fs").addEventListener("click", () => $("stage").requestFullscreen && $("stage").requestFullscreen());
 	$("errclose").addEventListener("click", () => { $("overlay").hidden = true; });
