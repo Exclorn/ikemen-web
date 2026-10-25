@@ -1,5 +1,6 @@
 // Minimal zip reader (stored and deflate entries) using DecompressionStream.
-globalThis.ikemenUnzip = async function (buf, onEntry) {
+// filter(name, size) may return false to skip unpacking an entry; onEntry then gets null data.
+globalThis.ikemenUnzip = async function (buf, onEntry, filter) {
 	const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
 	const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
 	let eocd = -1;
@@ -26,6 +27,7 @@ globalThis.ikemenUnzip = async function (buf, onEntry) {
 	let done = 0;
 	for (const e of entries) {
 		if (e.name.endsWith("/")) { done++; continue; }
+		if (filter && !filter(e.name, e.usize)) { onEntry(e.name, null); done++; continue; }
 		const lnlen = dv.getUint16(e.lho + 26, true), lelen = dv.getUint16(e.lho + 28, true);
 		const start = e.lho + 30 + lnlen + lelen;
 		const raw = u8.subarray(start, start + e.csize);
