@@ -57,32 +57,32 @@
 		}, 1500);
 	}
 
-	async function fetchZip(url, label, strip) {
+	async function fetchZip(url, label) {
 		status("Downloading " + label + "...");
 		const r = await fetch(url + "?v=" + Math.floor(Date.now() / 60000));
 		if (!r.ok) throw new Error(url + ": HTTP " + r.status);
-		const buf = await r.arrayBuffer();
+		const blob = await r.blob();
 		status("Unpacking " + label + "...");
-		await load(buf, strip, label);
+		const list = await ikemenZipList(blob);
+		const want = new Set(list.map(e => e.name));
+		await ikemenUnzip(blob, (n, d) => ikemenFS.writeFile("/" + n, d), n => want.has(n));
 	}
-	// Unpacks a zip into the virtual filesystem and returns the list of [path, bytes] it wrote.
-	// For user zips (strip = true) a single wrapper folder is removed, and a zip that has no chars/ or
-	// stages/ folder at all is treated as one character folder and placed under chars/.
+
 	// Works out the final path of every file in a user zip: removes one wrapper folder and wraps plain
-	// character zips under chars/. names is a list of [path, bytes|null].
-	function normalize(names, zipName) {
+	// character zips under chars/. entries are [path, data, originalName].
+	function normalize(entries, zipName) {
 		const known = ["data", "chars", "stages", "font", "sound"];
 		const topOf = n => n.split("/")[0].toLowerCase();
 		let prefix = "";
 		// Remove one shared top-level folder, e.g. "MyPack/chars/..."
-		const first = names.length ? names[0][0].split("/")[0] : "";
-		if (first && names.every(([n]) => n.startsWith(first + "/")) && !known.includes(first.toLowerCase()))
+		const first = entries.length ? entries[0][0].split("/")[0] : "";
+		if (first && entries.every(([n]) => n.startsWith(first + "/")) && !known.includes(first.toLowerCase()))
 			prefix = first + "/";
-		let out = names.map(([n, d]) => [n.slice(prefix.length), d]);
+		let out = entries.map(([n, d, o]) => [n.slice(prefix.length), d, o]);
 		if (!out.some(([n]) => known.includes(topOf(n)))) {
 			// A plain character zip: use the wrapper folder name (or the zip name) as the folder
 			const folder = prefix ? prefix.slice(0, -1) : (zipName || "char").replace(/\.zip$/i, "");
-			out = out.map(([n, d]) => ["chars/" + folder + "/" + n, d]);
+			out = out.map(([n, d, o]) => ["chars/" + folder + "/" + n, d, o]);
 		}
 		return out;
 	}
@@ -93,34 +93,54 @@
 		return /^__MACOSX\//i.test(n) || base.startsWith("._") || base === ".DS_Store" || base === "Thumbs.db" || n.split("/").includes("..");
 	};
 
-	// Unpacks a zip into the virtual filesystem and returns the list of [path, bytes] it wrote.
-	async function load(buf, strip, zipName) {
-		const names = [];
-		await ikemenUnzip(buf, (n, d) => {
-			n = cleanName(n);
-			if (strip && junk(n)) return;
-			names.push([n, d]);
-		});
-		const overwritten = [];
-		const out = strip ? normalize(names, zipName) : names;
-		for (const [n, d] of out) {
-			if (strip && n.toLowerCase() === "data/select.def") continue; // never replace the game's own list
-			if (strip && ikemenFS.exists("/" + n) && /\.(def|sff|air|cmd|cns)$/i.test(n)) overwritten.push(n);
-			ikemenFS.writeFile("/" + n, d);
+	// Reads a user zip's directory and its .def files (nothing else) and finds the characters and stages in it.
+	async function planZip(src, zipName) {
+		const entries = [];
+		for (const e of await ikemenZipList(src)) {
+			const n = cleanName(e.name);
+			if (!junk(n)) entries.push([n, null, e.name]);
 		}
-		if (strip && overwritten.length) console.warn((zipName || "zip") + " replaced " + overwritten.length + " existing file(s), e.g. " + overwritten[0]);
-		return out;
+		const out = normalize(entries, zipName);
+		const defs = new Map();
+		await ikemenUnzip(src, (o, d) => defs.set(o, d), (o, size) => /\.def$/i.test(o) && size <= 1 << 20);
+		const found = ikemenSelectDef.scan(out.filter(([, , o]) => defs.has(o)).map(([p, , o]) => [p, defs.get(o)]));
+		return { out, defs, found };
+	}
+	async function inspectZip(blob, zipName) {
+		return (await planZip(blob, zipName)).found;
 	}
 
-	// Lists the characters and stages in a user zip without unpacking everything (only .def files are read)
-	async function inspectZip(blob, zipName) {
-		const names = [];
-		await ikemenUnzip(await blob.arrayBuffer(), (n, d) => {
-			n = cleanName(n);
-			if (!junk(n)) names.push([n, d]);
-		}, (n, size) => /\.def$/i.test(n) && size <= 1 << 20);
-		const found = ikemenSelectDef.scan(normalize(names, zipName).filter(([, d]) => d));
-		return { chars: found.chars, stages: found.stages };
+	// Unpacks a user zip into the virtual filesystem. Characters and stages the user switched off are not
+	// unpacked at all. Returns the characters and stages that are switched on.
+	async function loadUserZip(blob, zipName, hiddenList) {
+		const hidden = new Set(hiddenList || []);
+		const { out, defs, found } = await planZip(blob, zipName);
+		const chars = found.chars.filter(c => !hidden.has("c:" + c));
+		const stages = found.stages.filter(s => !hidden.has("s:" + s));
+		// A character folder is skipped when it has hidden characters and no visible ones
+		const folder = c => "chars/" + c.split("/")[0] + "/";
+		const keepFolders = new Set(chars.map(folder).map(f => f.toLowerCase()));
+		const skipFolders = [...new Set(found.chars.filter(c => hidden.has("c:" + c)).map(folder).map(f => f.toLowerCase()))]
+			.filter(f => !keepFolders.has(f));
+		const skipStages = found.stages.filter(s => hidden.has("s:" + s)).map(s => s.toLowerCase().replace(/\.def$/, ""));
+		const skipped = p => {
+			const l = p.toLowerCase();
+			if (l === "data/select.def") return true; // never replace the game's own list
+			return skipFolders.some(f => l.startsWith(f)) || skipStages.some(s => l.startsWith(s + ".") || l.startsWith(s + "/"));
+		};
+		const wanted = new Map(out.filter(([p]) => !skipped(p)).map(([p, , o]) => [o, p]));
+		const overwritten = [];
+		const write = (o, d) => {
+			const p = wanted.get(o);
+			if (ikemenFS.exists("/" + p) && /\.(def|sff|air|cmd|cns)$/i.test(p)) overwritten.push(p);
+			ikemenFS.writeFile("/" + p, d);
+		};
+		for (const [o, d] of defs) if (wanted.has(o)) write(o, d);
+		await ikemenUnzip(blob, write, o => wanted.has(o) && !defs.has(o));
+		if (overwritten.length) console.warn(zipName + " replaced " + overwritten.length + " existing file(s), e.g. " + overwritten[0]);
+		const skippedCount = out.length - wanted.size - (out.some(([p]) => p.toLowerCase() === "data/select.def") ? 1 : 0);
+		if (skippedCount > 0) console.log(zipName + ": skipped " + skippedCount + " file(s) of switched-off characters/stages");
+		return { chars, stages };
 	}
 
 	window.ikemenShowMessage = (level, title, msg) => {
@@ -137,18 +157,16 @@
 			const AC = window.AudioContext || window.webkitAudioContext;
 			window.ikemenAudioCtx = new AC({ latencyHint: "interactive" });
 			ikemenAudioCtx.resume();
-			await fetchZip("engine.zip", "engine", false);
-			await fetchZip("content.zip", "content", false);
+			await fetchZip("engine.zip", "engine");
+			await fetchZip("content.zip", "content");
 			const chars = [], stages = [];
 			for (const rec of await ikemenLib.list()) {
 				if (!rec.enabled) continue;
 				status("Unpacking " + rec.name + "...");
 				try {
-					const out = await load(await (await ikemenLib.blob(rec.name)).arrayBuffer(), true, rec.name);
-					const found = ikemenSelectDef.scan(out);
-					const hidden = new Set(rec.hidden || []);
-					chars.push(...found.chars.filter(c => !hidden.has("c:" + c)));
-					stages.push(...found.stages.filter(s => !hidden.has("s:" + s)));
+					const r = await loadUserZip(await ikemenLib.blob(rec.name), rec.name, rec.hidden);
+					chars.push(...r.chars);
+					stages.push(...r.stages);
 				} catch (e) {
 					console.error("Could not read " + rec.name + ": " + e.message);
 				}
