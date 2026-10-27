@@ -25,8 +25,17 @@ jobs:
           go-version: '1.27'
           check-latest: true
 
+      # Pinned to a known-good commit: newer screenpack versions use select.def syntax this engine version
+      # does not understand yet. Change the SHA on purpose to upgrade.
       - name: Fetch the screenpack (game content)
-        run: git clone --depth 1 https://github.com/Ikemen-Engine/Ikemen_GO-Elecbyte-Screenpack "$RUNNER_TEMP/screenpack"
+        env:
+          SCREENPACK_SHA: ab606f77ab85a344fb603a7bffd79935abdd8e89
+        run: |
+          mkdir "$RUNNER_TEMP/screenpack" && cd "$RUNNER_TEMP/screenpack"
+          git init -q
+          git remote add origin https://github.com/Ikemen-Engine/Ikemen_GO-Elecbyte-Screenpack
+          git fetch -q --depth 1 origin "$SCREENPACK_SHA"
+          git checkout -q FETCH_HEAD
 
       - name: Build
         run: bash web/build.sh "$RUNNER_TEMP/screenpack"
