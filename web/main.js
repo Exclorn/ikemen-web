@@ -1,24 +1,34 @@
 (function () {
 	const $ = id => document.getElementById(id);
 	const status = t => { $("status").textContent = t; };
-	// Mirror console output and errors into an on-page log so problems can be screenshotted
-	const logEl = $("log"), lines = [];
-	const addLog = (k, a) => {
-		lines.push((k === "log" ? "" : k.toUpperCase() + ": ") + a.map(x => x instanceof Error ? x.stack || x.message : String(x)).join(" "));
-		if (lines.length > 80) lines.shift();
+	// Mirror console output into an on-page log. It stays closed unless something serious happens,
+	// so the many harmless engine warnings do not get in the way.
+	const logEl = $("log"), box = $("logbox"), lines = [];
+	const setLog = open => {
+		box.classList.toggle("open", open);
+		$("logtoggle").textContent = open ? "Hide log" : "Log";
+		if (open) box.scrollTop = 1e9;
+	};
+	const serious = /\bpanic\b|goroutine \d+ \[running\]|^Unhandled|^Uncaught/i;
+	const addLog = (prefix, a) => {
+		const text = prefix + a.map(x => x instanceof Error ? x.stack || x.message : String(x)).join(" ");
+		lines.push(text);
+		if (lines.length > 200) lines.shift();
 		logEl.textContent = lines.join("\n");
-		logEl.parentNode.scrollTop = 1e9;
+		if (box.classList.contains("open")) box.scrollTop = 1e9;
+		else if (serious.test(text)) setLog(true);
 	};
 	for (const k of ["log", "info", "warn", "error"]) {
 		const o = console[k].bind(console);
-		console[k] = (...a) => { o(...a); addLog(k, a); };
+		console[k] = (...a) => { o(...a); addLog("", a); };
 	}
-	window.addEventListener("error", e => addLog("error", [e.message + " @" + e.filename + ":" + e.lineno]));
-	window.addEventListener("unhandledrejection", e => addLog("error", ["Unhandled: " + (e.reason && (e.reason.stack || e.reason))]));
-	$("logtoggle").addEventListener("click", () => {
-		const hide = logEl.style.display !== "none";
-		logEl.style.display = hide ? "none" : "";
-		$("logtoggle").textContent = hide ? "Show log" : "Hide log";
+	window.addEventListener("error", e => addLog("Uncaught: ", [e.message + " @" + e.filename + ":" + e.lineno]));
+	window.addEventListener("unhandledrejection", e => addLog("Unhandled: ", [e.reason && (e.reason.stack || e.reason)]));
+	$("logtoggle").addEventListener("click", () => setLog(!box.classList.contains("open")));
+	$("logcopy").addEventListener("click", async () => {
+		try { await navigator.clipboard.writeText(lines.join("\n")); $("logcopy").textContent = "Copied"; }
+		catch (_) { $("logcopy").textContent = "Copy failed"; }
+		setTimeout(() => { $("logcopy").textContent = "Copy"; }, 1500);
 	});
 	const DB = "ikemen-save", STORE = "files";
 
@@ -210,6 +220,7 @@
 		} catch (e) {
 			console.error(e);
 			status("Failed: " + e.message);
+			setLog(true);
 			$("start").disabled = false; started = false;
 		}
 	}

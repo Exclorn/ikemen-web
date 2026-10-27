@@ -14,8 +14,11 @@ button{font:inherit;padding:.5em 1.2em;cursor:pointer}
 small{color:#999}
 .libRow{display:flex;gap:8px;align-items:center;margin:4px 0}.libRow span{flex:1;overflow:hidden;text-overflow:ellipsis}.libSub{margin-left:28px;font-size:13px;color:#bbb}.libRow button{font-size:12px;padding:2px 8px}
 #menu.drag{outline:2px dashed #6af}
-#logbox{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#000c;color:#9f9;font:11px/1.3 monospace;max-height:35vh;overflow:auto}
-#logbox pre{margin:0;padding:4px 8px;white-space:pre-wrap}#logtoggle{float:right;font-size:11px;padding:2px 8px}
+#logbox{position:fixed;right:0;bottom:0;z-index:6;font:11px/1.3 monospace}
+#logbox button{font-size:11px;padding:2px 8px;opacity:.35;margin:2px}#logbox button:hover{opacity:1}
+#logbox pre{display:none;margin:0;padding:4px 8px;white-space:pre-wrap;color:#9f9}
+#logbox.open{left:0;background:#000d;max-height:40vh;overflow:auto}
+#logbox.open pre{display:block}#logbox.open button{opacity:1}#logcopy{display:none}#logbox.open #logcopy{display:inline}
 [hidden]{display:none!important}
 </style></head><body>
 <div id="menu">
@@ -30,7 +33,7 @@ They are stored in this browser and loaded every time you press Start. Zips with
 </div>
 <div id="stage" hidden><canvas id="ikemen-canvas" width="1280" height="720" tabindex="0"></canvas><button id="fs">Fullscreen</button></div>
 <div id="overlay" hidden><div><div id="errtext"></div><p><button id="errclose">Close</button></p></div></div>
-<div id="logbox"><button id="logtoggle">Hide log</button><pre id="log"></pre></div>
+<div id="logbox"><button id="logtoggle">Log</button><button id="logcopy">Copy</button><pre id="log"></pre></div>
 <script src="fs.js"></script>
 <script src="wasm_exec.js"></script>
 <script src="zip.js"></script>
